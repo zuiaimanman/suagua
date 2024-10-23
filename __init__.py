@@ -9,7 +9,8 @@ from nonebot.adapters.onebot.v11 import Bot, Event, Message, MessageSegment
 
 from zhenxun.services.log import logger
 from zhenxun.configs.utils import PluginExtraData
-from zhenxun.configs.path_config import IMAGE_PATH
+
+# from zhenxun.configs.path_config import IMAGE_PATH
 
 __plugin_meta__ = PluginMetadata(
     name="算卦",
@@ -24,16 +25,11 @@ __plugin_meta__ = PluginMetadata(
         menu_type="群内小游戏",
     ).dict(),
 )
-
-
-dir_path = IMAGE_PATH / "suagua"
-gua_path = dir_path / "images"
-
-# 创建一个字典来存储每个用户的卦象图片编号
+# yong字典来存储每个用户的卦象图片编号
 user_gua_numbers = {}
-
-# GitHub 图片链接模板
-image_url_template = "https://github.com/your_repo/suagua/images/{rand}.jpg"
+# liao链接
+url = "https://gitee.com/shiranranran/suagua/raw/master/suagua/images/{rand}.jpg"
+url_2 = "https://github.com/zuiaimanman/suagua/raw/main/suagua/images/{rand}.jpg"
 
 suangua = on_command("算卦", aliases={"起卦", "推算"}, priority=5, block=True)
 
@@ -44,33 +40,29 @@ async def handle_suangua(bot: Bot, event: Event, arg: Message = CommandArg()):
     rand = user_gua_numbers.get(user_id, random.randint(0, 64))
     user_gua_numbers[user_id] = rand
 
-    image_file = (gua_path / f"{rand}.jpg").resolve()
-    logger.info(f"算卦：第{rand}卦，图片路径：{image_file}")
+    image_url = url.format(rand=rand)
+    logger.info(f"算卦：第{rand}卦，图片链接：{image_url}")
 
-    if not image_file.exists():
-        logger.info(f"图片文件不存在：{image_file}，尝试从链接下载")
-        try:
-            response = requests.get(image_url_template.format(rand=rand))
-            if response.status_code == 200:
-                with open(image_file, "wb") as f:
-                    f.write(response.content)
-                logger.info(f"成功下载图片：{image_file}")
-            else:
-                await suangua.finish(
-                    f"无法下载图片，状态码：{response.status_code}", at_sender=True
-                )
-                return
-        except Exception as e:
-            logger.error(f"下载图片时发生错误：{e}")
-            await suangua.finish(f"下载图片时发生错误：{e}", at_sender=True)
-            return
-
-    msg_image = MessageSegment.image(str(image_file))
-    await suangua.finish(msg_image, at_sender=True)
+    response = requests.get(image_url)
+    if response.status_code == 200:
+        msg_image = MessageSegment.image(response.content)
+        await suangua.finish(msg_image, at_sender=True)
+    else:
+        logger.warning(f"第一个链接下载图片s失败，状态码：{response.status_code}")
+        image_url_2 = url_2.format(rand=rand)
+        logger.info(f"尝试第二个链接：{image_url_2}")
+        response_2 = requests.get(image_url_2)
+        if response_2.status_code == 200:
+            msg_image = MessageSegment.image(response_2.content)
+            await suangua.finish(msg_image, at_sender=True)
+        else:
+            await suangua.finish(
+                f"哦豁，两个链接都无法下载图片，状态码：{response_2.status_code}",
+                at_sender=True,
+            )
 
 
 # 每天凌晨清空字典以重置所有用户的卦象图片编号
 def reset_gua_numbers():
     global user_gua_numbers
     user_gua_numbers = {}
-# 在适当的地方调用 reset_gua_numbers 函数，例如在插件加载时设置一个定时任务
